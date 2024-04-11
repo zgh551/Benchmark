@@ -10,15 +10,15 @@ from bson.objectid import ObjectId
 import streamlit.components.v1 as components
 
 st.set_page_config(
-    page_title="Benchmark",
+    page_title="Performance",
     page_icon="👋",
     layout="wide",
     menu_items={
-        'About': "# sdnn benchmark app!"
+        'About': "# sdnn performance benchmark app!"
     }
 )
 
-st.title('SDNN Benchmark')
+st.title('SDNN Performance Benchmark')
 
 client = init_connection()
 

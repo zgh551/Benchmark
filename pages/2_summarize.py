@@ -6,15 +6,15 @@ from utils.utils import filter_dataframe
 from utils.utils import init_connection, get_next_items, get_models
 
 st.set_page_config(
-    page_title="Benchmark Summarize",
+    page_title="Performance Summarize",
     page_icon="👋",
     layout="wide",
     menu_items={
-        'About': "# sdnn benchmark summarize app!"
+        'About': "# sdnn performance benchmark summarize app!"
     }
 )
 
-st.title('SDNN Benchmark Summarize')
+st.title('SDNN Performance Benchmark Summarize')
 
 client = init_connection()
 items = get_models(client)
@@ -28,6 +28,7 @@ df_dict["sdk"] = []
 df_dict["os"] = []
 df_dict["ptg"] = []
 df_dict["device"] = []
+df_dict["acc_level"] = []
 df_dict["quant"] = []
 df_dict["npu"] = []
 df_dict["dequant"] = []
@@ -42,6 +43,8 @@ def get_shape(data: list):
 
 def get_mean(data: list):
     np_data = np.array(data)
+    if len(np_data) == 0:
+        return 0
     sorted_data = np.sort(np_data)
     median_index = np.median(sorted_data)
     if len(sorted_data) % 2 == 1:
@@ -61,6 +64,7 @@ for item in items:
     df_dict["os"].append(item['os'])
     df_dict["ptg"].append(item['ptg'])
     df_dict["date"].append(item['date'])
+    df_dict["acc_level"].append(item['acc_level'])
     data_dict = {"npu":None, "quant":None, "dequant":None}
     for k, v in item["data"].items():
         if "compass" in k:
@@ -72,7 +76,8 @@ for item in items:
         elif "cast" in k:
             data_dict["dequant"] = get_mean(v)
         else:
-            data_dict["dequant"] = get_mean(v)
+            print(k)
+            data_dict["npu"] = get_mean(v)
     for k,v in data_dict.items():
         df_dict[k].append(v)
 
@@ -94,6 +99,7 @@ with st.container(border=True):
             "os": "OS",
             "ptg": "PTG",
             "npu": "NPU",
+            "acc_level": "Acc Level",
             "quant": "Quant",
             "dequant": "Dequant",
             "date": "Date",
