@@ -1,6 +1,11 @@
+import os
+import json
+import pymongo
+import tempfile
 import streamlit as st
 import pandas as pd
-import pymongo
+import numpy as np
+from gridfs import GridFS
 from typing import Any, Optional
 from pandas.api.types import (
     is_categorical_dtype,
@@ -26,7 +31,7 @@ class MongoDB:
             chip: Optional[str]=None,
             date: Optional[str]=None):
         find_dict = {}
-        db = self._client.sdnn
+        db = self._client.sdnn_benchmark
         if mod_name:
             find_dict["name"] = mod_name
             if device:
@@ -37,11 +42,11 @@ class MongoDB:
                 find_dict["chip"] = chip
             if date:
                 find_dict["date"] = date
-            items = db.benchmark.find(find_dict)
+            items = db.performance.find(find_dict)
             items = list(items)  # make hashable for st.cache_data
             return items
         else:
-            items = db.benchmark.find(find_dict)
+            items = db.performance.find(find_dict)
             items = list(items)  # make hashable for st.cache_data
             return items
 
@@ -87,7 +92,7 @@ def init_connection():
 # Pull data from the collection.
 # Uses st.cache_data to only rerun when the query changes or after 5 min.
 @st.cache_data(ttl=300)
-def get_models(
+def get_models_performance(
         _client,
         mod_name: Optional[str]=None,
         device: Optional[str]=None,
@@ -96,7 +101,7 @@ def get_models(
         acc_level: Optional[list]=None,
         date: Optional[list]=None):
     find_dict = {}
-    db = _client.sdnn
+    db = _client.sdnn_benchmark
     if mod_name:
         find_dict["name"] = mod_name
         if device:
@@ -109,14 +114,36 @@ def get_models(
             find_dict["acc_level"] = {"$in": acc_level}
         if date:
             find_dict["date"] = {"$in": date}
-        items = db.benchmark.find(find_dict)
+        items = db.performance.find(find_dict)
         items = list(items)  # make hashable for st.cache_data
         return items
     else:
-        items = db.benchmark.find(find_dict)
+        items = db.performance.find(find_dict)
         items = list(items)  # make hashable for st.cache_data
         return items
 
+#@st.cache_data(ttl=300)
+def get_models_performance_files(_client, file_id):
+    db = _client.sdnn_benchmark
+    performance_gridfs = GridFS(db, 'performance')
+    return performance_gridfs.get(file_id)
+
+
+####### Accuracy Model #######
+@st.cache_data(ttl=300)
+def get_compiled_models(_client):
+    db = _client.sdnn_model_zoo
+    return list(db.compiled_models.find({"device": "aipu"}))
+
+def get_compiled_models_files(_client, file_id):
+    db = _client.sdnn_model_zoo
+    compiled_gridfs = GridFS(db, 'compiled_models')
+    return compiled_gridfs.get(file_id)
+
+def get_compiled_json_file(client, file_id):
+    json_file = get_compiled_models_files(client, file_id)
+    return  json.load(json_file)
+###############################################
 @st.cache_data(ttl=60)
 def get_next_items(
         _client,
@@ -232,5 +259,34 @@ def filter_dataframe(df: pd.DataFrame) -> pd.DataFrame:
                     df = df[df[column].str.contains(user_text_input)]
 
     return df
+
+def get_shape(data: list):
+    shape_str = ""
+    for d in data:
+        shape_str += "(%s)%s " % (d['dtype'], str(d['shape']))
+    return shape_str
+
+def get_mean(data: list):
+    np_data = np.array(data)
+    if len(np_data) == 0:
+        return 0
+    sorted_data = np.sort(np_data)
+    median_index = np.median(sorted_data)
+    if len(sorted_data) % 2 == 1:
+        return sorted_data[int(median_index)]
+    else:
+        return (sorted_data[int(median_index)] + sorted_data[int(median_index) -1 ]) * 0.5
+
+def get_npz_file(client, file_id):
+    npz_file = get_models_performance_files(client, file_id)
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        npz_file_path = os.path.join(tmpdirname, "file.npz")
+        with open(npz_file_path, 'wb') as f:
+            f.write(npz_file.read())
+        return np.load(npz_file_path)
+
+def get_json_file(client, file_id):
+    deploy_json = get_models_performance_files(client, file_id)
+    return  json.load(deploy_json)
 
 
