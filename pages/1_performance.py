@@ -4,7 +4,6 @@ from bson.objectid import ObjectId
 import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
-#from utils.utils import filter_dataframe
 from utils.utils import *
 import plotly.figure_factory as ff
 import plotly.graph_objects as go
@@ -43,8 +42,10 @@ df_dict["dtcm"] = []
 df_dict["mean_quant"] = []
 df_dict["mean_npu"] = []
 df_dict["mean_dequant"] = []
+df_dict["mean_rpc"] = []
 ## other info no display
 df_dict["date"] = []
+df_dict["rpc_time_data_id"] = []
 df_dict["time_data_id"] = []
 df_dict["deploy_json_id"] = []
 df_dict["graph_json_id"] = []
@@ -69,7 +70,7 @@ for item in items:
     df_dict["winograd"].append(item['winograd'])
     df_dict["dtcm"].append(item['dtcm'])
     ## calculate mean run time
-    data_dict = {"mean_npu":None, "mean_quant":None, "mean_dequant":None}
+    data_dict = {"mean_npu":None, "mean_quant":None, "mean_dequant":None, "mean_rpc":None}
     run_time_data = get_npz_file(client, item['time_data'])
     for k in run_time_data.files:
         if "compass" in k:
@@ -83,10 +84,22 @@ for item in items:
         else:
             #print(k)
             data_dict["mean_npu"] = np.median(run_time_data[k])
+    if "rpmsg_time_data" in item.keys():
+        if item['rpmsg_time_data']:
+            rpc_run_time_data = get_npz_file(client, item['rpmsg_time_data'])
+            for k in rpc_run_time_data.files:
+                if "rpc-run" == k:
+                    data_dict["mean_rpc"] =  np.median(rpc_run_time_data[k])
+                else:
+                    print("unkonw key: {}".format(k))
     for k,v in data_dict.items():
         df_dict[k].append(v)
 
     df_dict["date"].append(item['date'])
+    if "rpmsg_time_data" in item.keys() and item['rpmsg_time_data']:
+        df_dict["rpc_time_data_id"].append(item['rpmsg_time_data'].binary)
+    else:
+        df_dict["rpc_time_data_id"].append(None)
     df_dict["time_data_id"].append(item['time_data'].binary)
     df_dict["deploy_json_id"].append(item['deploy_json'].binary)
     df_dict["graph_json_id"].append(item['graph_json'].binary)
@@ -109,10 +122,12 @@ with st.container(border=True):
     st.data_editor(filter_df,
         column_order=["show", "name", "category", "input_shape", "output_shape",
             "ptg", "sdk", "chip", "os", "device", "acc_level", "bit_quant",
-            "winograd", "dtcm", "mean_quant", "mean_npu", "mean_dequant"],
+            "winograd", "dtcm", "mean_quant", "mean_npu", "mean_dequant",
+            "mean_rpc"],
         disabled =["name", "category", "input_shape", "output_shape",
             "ptg","sdk", "chip", "os", "device", "acc_level", "bit_quant",
-            "winograd", "dtcm", "mean_quant", "mean_npu", "mean_dequant"],
+            "winograd", "dtcm", "mean_quant", "mean_npu", "mean_dequant",
+            "mean_rpc"],
         column_config={
             "show": "Show",
             "name": "Model Name",
@@ -127,6 +142,7 @@ with st.container(border=True):
             "mean_npu": "NPU",
             "mean_quant": "Quant",
             "mean_dequant": "Dequant",
+            "mean_rpc": "RPC",
             "date": "Date",
         },
         #height = 500,
@@ -167,6 +183,7 @@ if len(is_show_df_index_list) > 0:
             aux_lable_name += "-" + filter_df.iloc[index]["bit_quant"]
         model_name = filter_df.iloc[index]["name"] + aux_lable_name
         performance_info_dict[model_name] = {
+            "rpc_time_data": filter_df.iloc[index]["rpc_time_data_id"],
             "time_data": filter_df.iloc[index]["time_data_id"],
             "deploy_json": filter_df.iloc[index]["deploy_json_id"],
             "graph_json": filter_df.iloc[index]["graph_json_id"],
@@ -178,27 +195,33 @@ if len(is_show_df_index_list) > 0:
         fig_line = go.Figure()
         fig_box = go.Figure()
         node_selected = st.radio("Which node to plot?",
-                [":rainbow[NPU]", 'Dequant', 'Quant'], 0,
+                [":rainbow[NPU]", ":rainbow[RPC]", 'Dequant', 'Quant'], 0,
                 horizontal=True)
         ## run time plot figure
         for key, val in performance_info_dict.items():
+            if val["rpc_time_data"]:
+                rpc_run_time_data = get_npz_file(client, ObjectId(val["rpc_time_data"]))
             run_time_data = get_npz_file(client, ObjectId(val["time_data"]))
             lable_name = None
             selected_node_time = None
-            for node_name in run_time_data.files:
-                ## setup run time node name
-                if node_selected == ":rainbow[NPU]" and "compass" in node_name:
-                    selected_node_time = run_time_data[node_name]
-                    lable_name = "npu"
-                    break
-                elif node_selected == "Dequant" and ("multiply" in node_name or "cast" in node_name):
-                    selected_node_time = run_time_data[node_name]
-                    lable_name = "dequant"
-                    break
-                elif node_selected == "Quant" and "divide" in node_name:
-                    selected_node_time = run_time_data[node_name]
-                    lable_name = "quant"
-                    break
+            if node_selected == ":rainbow[RPC]" and rpc_run_time_data:
+                selected_node_time = rpc_run_time_data["rpc-run"]
+                lable_name = "rpc"
+            else:
+                for node_name in run_time_data.files:
+                    ## setup run time node name
+                    if node_selected == ":rainbow[NPU]" and "compass" in node_name:
+                        selected_node_time = run_time_data[node_name]
+                        lable_name = "npu"
+                        break
+                    elif node_selected == "Dequant" and ("multiply" in node_name or "cast" in node_name):
+                        selected_node_time = run_time_data[node_name]
+                        lable_name = "dequant"
+                        break
+                    elif node_selected == "Quant" and "divide" in node_name:
+                        selected_node_time = run_time_data[node_name]
+                        lable_name = "quant"
+                        break
             if lable_name:
                 ## update plot data
                 fig_line.add_trace(

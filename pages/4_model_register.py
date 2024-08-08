@@ -31,6 +31,10 @@ db = client.sdnn_model_zoo
 ## pull models from data base
 #models_gridfs = GridFS(db, 'models')
 #items = models_collection.find({"name": "yolov6s", "device": "aipu"})
+host_ip = "192.168.200.251"
+url_pattern = "^http://" + host_ip + ":8092/(?:[0-9a-zA-Z._]+/){1,}"
+display_pattern = "http://" + host_ip + ":8092/(?:[0-9a-zA-Z._]+/){1,}(.*?)$"
+dataset_display_pattern = "http://" + host_ip + ":8092/(?:[0-9a-zA-Z._]+/){1,}(.*?)/$"
 
 model_category = ["classification_2d", "classification_3d",
         "object_detection_2d", "object_detection_3d",
@@ -76,9 +80,6 @@ with acc_tab:
         else:
             ss.df = pd.DataFrame(model_df_dict)
 
-    url_pattern = "^http://192.168.104.217:8092/(?:[0-9a-zA-Z._]+/){1,}"
-    display_pattern = "http://192.168.104.217:8092/(?:[0-9a-zA-Z._]+/){1,}(.*?)$"
-    dataset_display_pattern = "http://192.168.104.217:8092/(?:[0-9a-zA-Z._]+/){1,}(.*?)/$"
     max_url_chars=300
     config = {
         "Name": st.column_config.TextColumn(
@@ -99,7 +100,7 @@ with acc_tab:
                 "Input Name",
                 help="The name of model input 🎈",
                 max_chars=200,
-                validate="^\w+$",
+                #validate="^\w+$",
                 required=True,
             ),
         "InputShape": st.column_config.TextColumn(
@@ -213,9 +214,6 @@ with test_tab:
         else:
             ss.test_df = pd.DataFrame(model_df_dict)
 
-    url_pattern = "^http://192.168.104.217:8092/(?:[0-9a-zA-Z._]+/){1,}"
-    display_pattern = "http://192.168.104.217:8092/(?:[0-9a-zA-Z._]+/){1,}(.*?)$"
-    dataset_display_pattern = "http://192.168.104.217:8092/(?:[0-9a-zA-Z._]+/){1,}(.*?)/$"
     max_url_chars=300
     config = {
         "name": st.column_config.TextColumn(
@@ -356,9 +354,6 @@ with client_tab:
         else:
             ss.client_df = pd.DataFrame(model_df_dict)
 
-    url_pattern = "^http://192.168.104.217:8092/(?:[0-9a-zA-Z._]+/){1,}"
-    display_pattern = "http://192.168.104.217:8092/(?:[0-9a-zA-Z._]+/){1,}(.*?)$"
-    dataset_display_pattern = "http://192.168.104.217:8092/(?:[0-9a-zA-Z._]+/){1,}(.*?)/$"
     max_url_chars=300
     config = {
         "name": st.column_config.TextColumn(
